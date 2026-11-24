@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    font-family: var(--font-sans);
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Thermal Claim Slip & Laundry Bag Tag Print Isolation */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  #youlaba-printable-slip,
+  #youlaba-printable-slip * {
+    visibility: visible !important;
+  }
+
+  #youlaba-printable-slip {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: 82mm !important;
+    margin: 0 auto !important;
+    padding: 8mm 4mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

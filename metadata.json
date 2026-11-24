@@ -1,0 +1,6 @@
+{
+  "name": "YouLaba — Laundry Order Management & Tracking",
+  "description": "Customized customer website, real-time laundry order tracker, TPS counter workspace, and MIS analytics dashboard for YouLaba in Nazareth, Cagayan de Oro City.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
