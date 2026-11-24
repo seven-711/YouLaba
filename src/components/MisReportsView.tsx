@@ -8,7 +8,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { AlertTriangle, CheckCircle2, ClipboardCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, FileDown } from 'lucide-react';
+import { generateReportPDF } from '../lib/reportPdf';
 import {
   formatDateTime,
   formatPHP,
@@ -42,6 +43,27 @@ export function MisReportsView({
   const [period, setPeriod] = useState<PeriodFilter>('weekly');
 
   const todayKey = getLocalDateKey();
+
+  const handleExportPDF = () => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const fromDate =
+      period === 'daily'
+        ? startOfToday
+        : period === 'weekly'
+        ? new Date(startOfToday.getTime() - 6 * 24 * 60 * 60 * 1000)
+        : new Date(startOfToday.getTime() - 29 * 24 * 60 * 60 * 1000);
+    generateReportPDF({
+      period,
+      fromDate,
+      toDate: now,
+      orders,
+      payments,
+      shopSettings,
+      attendantName: actor.name,
+    });
+  };
+
 
   // Period-filtered orders
   const periodOrders = useMemo(() => {
@@ -205,23 +227,35 @@ export function MisReportsView({
           </p>
         </div>
 
-        <div className="flex items-center gap-1 p-1 bg-slate-200/70 rounded-lg">
-          {(['daily', 'weekly', 'monthly'] as PeriodFilter[]).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPeriod(p)}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-md capitalize transition-colors whitespace-nowrap ${
-                period === p
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 p-1 bg-slate-200/70 rounded-lg">
+            {(['daily', 'weekly', 'monthly'] as PeriodFilter[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPeriod(p)}
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-md capitalize transition-colors whitespace-nowrap ${
+                  period === p
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#0B6E99] hover:bg-[#085A7E] rounded-lg transition-colors whitespace-nowrap"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            Export PDF
+          </button>
         </div>
       </div>
+
 
       {/* Top KPI Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
