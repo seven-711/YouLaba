@@ -19,7 +19,6 @@ import {
   onSnapshot,
   orderBy,
   query,
-  where,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import {
@@ -137,18 +136,18 @@ export function PublicStorefront({
     [activeServices, estServiceId]
   );
 
-  // Live feed: last 10 active (non-Claimed) orders, ordered by most recently updated
+  // Live feed: last 10 orders by most recently updated, filter Claimed client-side
   useEffect(() => {
     const q = query(
       collection(db, 'orderTracking'),
-      where('status', '!=', 'Claimed'),
-      orderBy('status'),
       orderBy('updatedAt', 'desc'),
       limit(10)
     );
     const unsub = onSnapshot(q, (snap) => {
       setRecentOrders(
-        snap.docs.map((d) => d.data() as OrderTrackingPublic)
+        snap.docs
+          .map((d) => d.data() as OrderTrackingPublic)
+          .filter((o) => o.status !== 'Claimed')
       );
     }, () => {
       // Silently fail — public, non-critical

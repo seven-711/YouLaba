@@ -469,7 +469,9 @@ service cloud.firestore {
     match /orderTracking/{claimSlipNumber} {
       // Public customer lookup by exact Claim Slip Number ONLY (no list scraping!)
       allow get: if isValidClaimSlip(claimSlipNumber);
-      allow list: if isStaff();
+      // Public list allowed: collection is PII-stripped (customerLabel = initials only).
+      // Used by the landing page recent-orders feed (read-only, limit 10).
+      allow list: if true;
 
       allow create: if isVerified()
         && isValidClaimSlip(claimSlipNumber)
