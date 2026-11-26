@@ -70,31 +70,28 @@ const STATUS_ICONS: Record<OrderStatus, typeof Clock> = {
   'Claimed': CheckCircle2,
 };
 
-/** Format a raw string into YL-YYYY-XXXX as the user types */
+/** Format a raw string into YL-YYYY-XXXX as the user types, allowing clean clear/backspace. */
 function formatClaimInput(raw: string): string {
-  // Strip everything except alphanumeric
-  const digits = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-  // Build the formatted string progressively
-  // Expected: YL + YYYY + NNNN
-  // We store internally without dashes, then display with them
-
-  // If user typed the dashes themselves, strip and re-format
-  let clean = digits;
-
-  // Try to match segments
-  if (clean.startsWith('YL')) {
-    clean = clean.slice(2);
+  const upper = raw.toUpperCase().trim();
+  if (!upper || upper === 'Y' || upper === 'YL' || upper === 'YL-') {
+    return '';
   }
 
-  const year = clean.slice(0, 4);
-  const num = clean.slice(4, 8);
+  let clean = upper.replace(/[^A-Z0-9]/g, '');
+  if (clean.startsWith('YL')) {
+    clean = clean.slice(2);
+  } else if (clean.startsWith('Y')) {
+    clean = clean.slice(1);
+  }
 
-  let result = 'YL';
-  if (year.length > 0) result += `-${year}`;
-  if (num.length > 0) result += `-${num}`;
+  const digits = clean.replace(/\D/g, '').slice(0, 8);
+  if (digits.length === 0) {
+    return '';
+  }
 
-  return result;
+  const year = digits.slice(0, 4);
+  const num = digits.slice(4, 8);
+  return num.length > 0 ? `YL-${year}-${num}` : `YL-${year}`;
 }
 
 /** Check if formatted value is a complete valid claim slip */
@@ -119,6 +116,8 @@ export function PublicStorefront({
 
   // Recent orders from public orderTracking collection
   const [recentOrders, setRecentOrders] = useState<OrderTrackingPublic[]>([]);
+  const [recentLoading, setRecentLoading] = useState(true);
+  const [recentPermissionDenied, setRecentPermissionDenied] = useState(false);
 
   const [estServiceId, setEstServiceId] = useState(activeServices[0]?.id || '');
   const [estQty, setEstQty] = useState('5');
@@ -136,30 +135,39 @@ export function PublicStorefront({
     [activeServices, estServiceId]
   );
 
-  // Live feed: last 10 orders by most recently updated, filter Claimed client-side
+  // Live feed: last 10 orders by most recently updated, active first
   useEffect(() => {
+    setRecentLoading(true);
+    setRecentPermissionDenied(false);
     const q = query(
       collection(db, 'orderTracking'),
       orderBy('updatedAt', 'desc'),
       limit(10)
     );
-    const unsub = onSnapshot(q, (snap) => {
-      setRecentOrders(
-        snap.docs
-          .map((d) => d.data() as OrderTrackingPublic)
-          .filter((o) => o.status !== 'Claimed')
-      );
-    }, () => {
-      // Silently fail — public, non-critical
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const all = snap.docs.map((d) => d.data() as OrderTrackingPublic);
+        const active = all.filter((o) => o.status !== 'Claimed');
+        setRecentOrders(active.length > 0 ? active : all.slice(0, 5));
+        setRecentLoading(false);
+        setRecentPermissionDenied(false);
+      },
+      (err) => {
+        console.warn('Recent orders read blocked:', err.code, err.message);
+        setRecentOrders([]);
+        setRecentLoading(false);
+        setRecentPermissionDenied(err.code === 'permission-denied');
+      }
+    );
     return () => unsub();
-  }, []);
+  }, [isAuthenticatedStaff]);
 
   const handleTrackInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatClaimInput(e.target.value);
     setTrackingCode(formatted);
     setTrackingError('');
-    // Auto-submit when complete
+    // Auto-submit when complete YL-YYYY-NNNN
     if (isComplete(formatted)) {
       onOpenOrderStatus(normalizeClaimSlip(formatted));
     }
@@ -167,9 +175,14 @@ export function PublicStorefront({
 
   const handleTrackSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = normalizeClaimSlip(trackingCode);
-    if (clean.length < 5) {
-      setTrackingError('Enter your Claim Slip Number (e.g. YL-2026-0001).');
+    let clean = normalizeClaimSlip(trackingCode);
+    // Allow shorthand 4-digit sequence (e.g. "0001" -> "YL-2026-0001")
+    const shortMatch = clean.match(/^YL-(\d{4})$/);
+    if (shortMatch && !shortMatch[1].startsWith('20')) {
+      clean = `YL-${new Date().getFullYear()}-${shortMatch[1]}`;
+    }
+    if (!/^YL-\d{4}-\d{4}$/.test(clean) && clean.length < 5) {
+      setTrackingError('Enter your Claim Slip ID (e.g. 20260001 or YL-2026-0001).');
       return;
     }
     setTrackingError('');
@@ -311,46 +324,59 @@ export function PublicStorefront({
             )}
 
             {/* ── RECENT ORDERS ── */}
-            {recentOrders.length > 0 && (
-              <div className="mt-5 pt-4 border-t border-slate-200">
-                <p className="text-xs font-semibold text-slate-500 mb-2.5 uppercase tracking-wide">
-                  Recent orders
+            <div className="mt-5 pt-4 border-t border-slate-200">
+              <p className="text-xs font-semibold text-slate-500 mb-2.5 uppercase tracking-wide">
+                Recent orders
+              </p>
+
+              {recentLoading ? (
+                <p className="text-xs text-slate-400 py-2">Loading recent orders...</p>
+              ) : recentOrders.length > 0 ? (
+                <>
+                  <div className="space-y-1.5">
+                    {recentOrders.map((order) => {
+                      const StatusIcon = STATUS_ICONS[order.status] ?? Clock;
+                      const pillClass = STATUS_COLORS[order.status] ?? 'bg-slate-100 text-slate-500';
+                      return (
+                        <button
+                          key={order.claimSlipNumber}
+                          type="button"
+                          onClick={() => onOpenOrderStatus(order.claimSlipNumber)}
+                          className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-[#0B6E99]/40 hover:bg-[#0B6E99]/5 transition-all group text-left"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="font-mono text-xs font-bold text-slate-800 shrink-0">
+                              {order.claimSlipNumber}
+                            </span>
+                            <span className="text-xs text-slate-400 truncate">
+                              {order.customerLabel}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${pillClass}`}>
+                              <StatusIcon className="w-3 h-3" />
+                              {order.status}
+                            </span>
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#0B6E99] transition-colors" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2.5">
+                    Tap any order above to view its live status
+                  </p>
+                </>
+              ) : recentPermissionDenied ? (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Recent orders list requires deploying the updated Firestore rules (`allow list` on `orderTracking`). You can still enter your Claim Slip ID above.
                 </p>
-                <div className="space-y-1.5">
-                  {recentOrders.map((order) => {
-                    const StatusIcon = STATUS_ICONS[order.status] ?? Clock;
-                    const pillClass = STATUS_COLORS[order.status] ?? 'bg-slate-100 text-slate-500';
-                    return (
-                      <button
-                        key={order.claimSlipNumber}
-                        type="button"
-                        onClick={() => onOpenOrderStatus(order.claimSlipNumber)}
-                        className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-[#0B6E99]/40 hover:bg-[#0B6E99]/5 transition-all group text-left"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="font-mono text-xs font-bold text-slate-800 shrink-0">
-                            {order.claimSlipNumber}
-                          </span>
-                          <span className="text-xs text-slate-400 truncate">
-                            {order.customerLabel}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${pillClass}`}>
-                            <StatusIcon className="w-3 h-3" />
-                            {order.status}
-                          </span>
-                          <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#0B6E99] transition-colors" />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2.5">
-                  Showing active orders only · tap any row to view details
+              ) : (
+                <p className="text-xs text-slate-400 py-1">
+                  No recent orders yet. Enter your Claim Slip ID above.
                 </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </section>
 

@@ -464,14 +464,15 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 6. OrderTracking Collection (PII-Isolated Public Get-Only Lookup)
+    // 6. OrderTracking Collection (PII-Isolated Public Lookup & Bounded Feed)
     // =========================================================================
     match /orderTracking/{claimSlipNumber} {
-      // Public customer lookup by exact Claim Slip Number ONLY (no list scraping!)
+      // Public customer lookup by exact Claim Slip Number
       allow get: if isValidClaimSlip(claimSlipNumber);
-      // Public list allowed: collection is PII-stripped (customerLabel = initials only).
-      // Used by the landing page recent-orders feed (read-only, limit 10).
-      allow list: if true;
+      // Staff can list freely; public unauthenticated list is strictly bounded
+      // to limit <= 10 for the landing page recent-orders feed (PII-stripped)
+      allow list: if isStaff()
+        || (request.query.limit != null && request.query.limit <= 10);
 
       allow create: if isVerified()
         && isValidClaimSlip(claimSlipNumber)
