@@ -342,18 +342,13 @@ export function PublicStorefront({
                           key={order.claimSlipNumber}
                           type="button"
                           onClick={() => onOpenOrderStatus(order.claimSlipNumber)}
-                          className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-[#0B6E99]/40 hover:bg-[#0B6E99]/5 transition-all group text-left"
+                          className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-[#0B6E99]/40 hover:bg-[#0B6E99]/5 transition-all group text-left"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="font-mono text-xs font-bold text-slate-800 shrink-0">
-                              {order.claimSlipNumber}
-                            </span>
-                            <span className="text-xs text-slate-400 truncate">
-                              {order.customerLabel}
-                            </span>
-                          </div>
+                          <span className="text-sm font-semibold text-slate-800 truncate">
+                            {order.customerLabel}
+                          </span>
                           <div className="flex items-center gap-1.5 shrink-0">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${pillClass}`}>
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${pillClass}`}>
                               <StatusIcon className="w-3 h-3" />
                               {order.status}
                             </span>
